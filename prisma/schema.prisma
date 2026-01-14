@@ -1,0 +1,1426 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  AFFILIATE
+}
+
+enum OtpType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  ONGOING
+}
+
+enum EnrollmentStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum LessonType {
+  VIDEO
+  TEXT
+  PDF
+  QUIZ
+  ASSIGNMENT
+}
+
+enum ConsultationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum ConsultationType {
+  ONLINE
+  OFFLINE
+}
+
+enum ReferralSource {
+  GOOGLE_SEARCH
+  FACEBOOK
+  INSTAGRAM
+  YOUTUBE
+  FRIEND_REFERRAL
+  EVENT
+  OTHER
+}
+
+enum LiveClassStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  ESEWA
+  MOBILE_BANKING
+  VISA_CARD
+  MASTERCARD
+  OTHER
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum CouponStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+}
+
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AffiliateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum GalleryType {
+  IMAGE
+  VIDEO
+}
+
+enum FAQCategory {
+  GENERAL
+  COURSES
+  PAYMENTS
+  ENROLLMENT
+  TECHNICAL
+  OTHER
+}
+
+enum ExpenseCategory {
+  MARKETING
+  SALARY
+  INFRASTRUCTURE
+  SOFTWARE
+  HARDWARE
+  OFFICE_RENT
+  UTILITIES
+  INSURANCE
+  PROFESSIONAL_SERVICES
+  TRAVEL
+  TRAINING
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  SALARY
+  REFUND
+  COMMISSION
+}
+
+enum TransactionCategory {
+  COURSE_SALE
+  PRODUCT_SALE
+  INSTRUCTOR_COMMISSION
+  AFFILIATE_COMMISSION
+  MARKETING
+  OPERATIONAL
+  INFRASTRUCTURE
+}
+
+model User {
+  id              String  @id @default(uuid())
+  email           String  @unique @db.VarChar(255)
+  password        String  @db.VarChar(255)
+  fullName        String  @db.VarChar(255)
+  profileImage    String? @db.VarChar(500)
+  phone           String? @db.VarChar(50)
+  role            Role    @default(USER)
+  isEmailVerified Boolean @default(false)
+  isActive        Boolean @default(true)
+  refreshToken    String? @db.Text
+
+  // 2FA fields
+  twoFactorEnabled     Boolean @default(false)
+  twoFactorSecret      String? @db.VarChar(255)
+  twoFactorBackupCodes Json? // Array of backup codes
+
+  // Payment preferences
+  preferredPaymentMethod String? @db.VarChar(50)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  otps                 Otp[]
+  enrollments          Enrollment[]           @relation("UserEnrollments")
+  progress             LessonProgress[]       @relation("UserProgress")
+  reviews              Review[]               @relation("UserReviews")
+  submissions          AssignmentSubmission[] @relation("UserSubmissions")
+  quizAttempts         QuizAttempt[]          @relation("UserQuizAttempts")
+  certificates         Certificate[]          @relation("UserCertificates")
+  payments             Payment[]              @relation("UserPayments")
+  notifications        Notification[]         @relation("UserNotifications")
+  affiliate            Affiliate?             @relation("UserAffiliate")
+  liveClassEnrollments LiveClassEnrollment[]  @relation("UserLiveClassEnrollments")
+  eventRegistrations   EventRegistration[]    @relation("UserEventRegistrations")
+  blogs                Blog[]                 @relation("AuthorBlogs")
+  blogComments         BlogComment[]          @relation("UserBlogComments")
+  productReviews       ProductReview[]        @relation("UserProductReviews")
+  cart                 Cart?                  @relation("UserCart")
+  orders               Order[]                @relation("UserOrders")
+  couponUsages         CouponUsage[]          @relation("UserCouponUsage")
+  auditLogs            AuditLog[]             @relation("UserAuditLogs")
+  wishlistItems        WishlistItem[]         @relation("UserWishlist")
+
+  @@index([email])
+  @@map("users")
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  userId    String
+  otp       String   @db.VarChar(6)
+  type      OtpType
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([otp, type, isUsed])
+  @@map("otps")
+}
+
+// INSTRUCTORS (Managed by Admin, NOT users)
+model Instructor {
+  id             String  @id @default(uuid())
+  name           String  @db.VarChar(255)
+  slug           String  @unique @db.VarChar(255)
+  image          String? @db.VarChar(500)
+  bio            String? @db.Text
+  designation    String? @db.VarChar(255)
+  specialization String? @db.VarChar(500)
+  email          String? @db.VarChar(255)
+  phone          String? @db.VarChar(50)
+  socialLinks    Json?
+  featured       Boolean @default(false)
+  order          Int     @default(0)
+
+  // Earnings tracking
+  totalEarnings   Decimal @default(0) @db.Decimal(10, 2)
+  paidEarnings    Decimal @default(0) @db.Decimal(10, 2)
+  pendingEarnings Decimal @default(0) @db.Decimal(10, 2)
+  commissionRate  Decimal @default(30.00) @db.Decimal(5, 2)
+
+  // Bank details for salary payments
+  bankName      String? @db.VarChar(255)
+  accountNumber String? @db.VarChar(100)
+  ifscCode      String? @db.VarChar(50)
+  panNumber     String? @db.VarChar(50)
+
+  courses     Course[]
+  liveClasses LiveClass[]
+  earnings    InstructorEarning[]
+  expenses    Expense[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([featured])
+  @@map("instructors")
+}
+
+// Categories for courses, blogs, products
+model Category {
+  id          String     @id @default(uuid())
+  name        String     @db.VarChar(255)
+  slug        String     @unique @db.VarChar(255)
+  description String?    @db.Text
+  image       String?    @db.VarChar(500)
+  type        String     @db.VarChar(50)
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  courses     Course[]
+  blogs       Blog[]
+  products    Product[]
+
+  @@index([slug])
+  @@index([type])
+  @@map("categories")
+}
+
+// Courses
+model Course {
+  id               String       @id @default(uuid())
+  title            String       @db.VarChar(255)
+  slug             String       @unique @db.VarChar(255)
+  description      String?      @db.Text
+  shortDescription String?      @db.VarChar(500)
+  thumbnail        String?      @db.VarChar(500)
+  price            Decimal      @default(0) @db.Decimal(10, 2)
+  isFree           Boolean      @default(false)
+  status           CourseStatus @default(DRAFT)
+  level            String?      @db.VarChar(50)
+  duration         Int?
+  language         String       @default("en") @db.VarChar(10)
+  featured         Boolean      @default(false)
+  isOngoing        Boolean      @default(false)
+  startDate        DateTime?
+  endDate          DateTime?
+
+  tags             String?  @db.VarChar(500)
+  originalPrice    Decimal? @db.Decimal(10, 2)  // For showing discount
+  learningOutcomes Json?    // Array of learning outcomes
+  skills           Json?    // Array of skills
+  rating           Decimal? @db.Decimal(3, 2)
+  totalRatings     Int      @default(0)
+  totalEnrollments Int      @default(0)
+
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+  categoryId   String?
+  category     Category?  @relation(fields: [categoryId], references: [id])
+
+  chapters          Chapter[]
+  lessons           Lesson[]
+  enrollments       Enrollment[]
+  reviews           Review[]
+  assignments       Assignment[]
+  liveClasses       LiveClass[]
+  certificates      Certificate[]
+  payments          Payment[]
+  wishlistItems     WishlistItem[]
+  affiliateEarnings AffiliateEarning[]
+  testimonials      Testimonial[]
+  successStories    StudentSuccessStory[]
+  expenses          Expense[]
+  instructorEarnings InstructorEarning[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([instructorId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([featured])
+  @@index([isOngoing])
+  @@index([rating])
+  @@index([tags])
+  @@map("courses")
+}
+
+// Chapters/Modules for organizing lessons
+model Chapter {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(255)
+  slug        String   @db.VarChar(255)
+  description String?  @db.Text
+  order       Int      @default(0)
+  isLocked    Boolean  @default(false)
+  isPreview   Boolean  @default(false)
+  
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  lessons Lesson[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([courseId, slug])
+  @@index([courseId])
+  @@index([order])
+  @@map("chapters")
+}
+
+// Lessons/Content
+model Lesson {
+  id            String     @id @default(uuid())
+  title         String     @db.VarChar(255)
+  slug          String     @db.VarChar(255)
+  description   String?    @db.Text
+  content       String?    @db.Text
+  videoUrl      String?    @db.VarChar(500)
+  videoDuration Int?
+  attachmentUrl String?    @db.VarChar(500)
+  lessonType    LessonType @default(VIDEO)
+  order         Int        @default(0)
+  isPreview     Boolean    @default(false)
+  isLocked      Boolean    @default(false)
+  unlockRequirement Json?  // Store prerequisites (e.g., complete previous lesson IDs)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chapterId String?
+  chapter   Chapter? @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+
+  progress LessonProgress[]
+  quiz     Quiz?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, slug])
+  @@index([courseId])
+  @@index([chapterId])
+  @@map("lessons")
+}
+
+// Enrollment System
+model Enrollment {
+  id       String @id @default(uuid())
+  userId   String
+  user     User   @relation("UserEnrollments", fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  status      EnrollmentStatus @default(PENDING)
+  progress    Int              @default(0)
+  completedAt DateTime?
+  affiliateId String?
+  affiliate   Affiliate?       @relation("AffiliateEnrollments", fields: [affiliateId], references: [userId])
+
+  affiliateEarnings AffiliateEarning[]
+  instructorEarnings InstructorEarning[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([status])
+  @@map("enrollments")
+}
+
+// Progress Tracking
+model LessonProgress {
+  id       String @id @default(uuid())
+  userId   String
+  user     User   @relation("UserProgress", fields: [userId], references: [id], onDelete: Cascade)
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  isCompleted Boolean   @default(false)
+  watchTime   Int       @default(0)
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+  @@map("lesson_progress")
+}
+
+// CONSULTATION SYSTEM
+model Consultation {
+  id      String  @id @default(uuid())
+  name    String  @db.VarChar(255)
+  email   String  @db.VarChar(255)
+  phone   String  @db.VarChar(50)
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id])
+
+  // Consultation type (ONLINE or OFFLINE)
+  consultationType ConsultationType?
+
+  // How did you find us
+  referralSource      ReferralSource?
+  referralSourceOther String?         @db.VarChar(255)
+
+  // Keep for backward compatibility
+  source String? @db.VarChar(100)
+
+  message     String?            @db.Text
+  status      ConsultationStatus @default(PENDING)
+  notes       String?            @db.Text
+  respondedAt DateTime?
+  respondedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([email])
+  @@index([consultationType])
+  @@map("consultations")
+}
+
+// STUDENT SUCCESS STORIES
+model StudentSuccessStory {
+  id           String  @id @default(uuid())
+  studentName  String  @db.VarChar(255)
+  studentImage String? @db.VarChar(500)
+  courseId     String?
+  course       Course? @relation(fields: [courseId], references: [id])
+
+  title       String  @db.VarChar(255)
+  story       String  @db.Text
+  achievement String? @db.VarChar(255)
+  company     String? @db.VarChar(255)
+  position    String? @db.VarChar(255)
+  testimonial String? @db.Text
+
+  isPublished Boolean @default(false)
+  featured    Boolean @default(false)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isPublished])
+  @@index([featured])
+  @@map("student_success_stories")
+}
+
+// TESTIMONIALS
+model Testimonial {
+  id          String  @id @default(uuid())
+  name        String  @db.VarChar(255)
+  image       String? @db.VarChar(500)
+  designation String? @db.VarChar(255)
+  company     String? @db.VarChar(255)
+  rating      Int     @default(5)
+  comment     String  @db.Text
+  courseId    String?
+  course      Course? @relation(fields: [courseId], references: [id])
+
+  isPublished Boolean @default(false)
+  featured    Boolean @default(false)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isPublished])
+  @@index([featured])
+  @@map("testimonials")
+}
+
+// GALLERY
+model Gallery {
+  id          String      @id @default(uuid())
+  title       String      @db.VarChar(255)
+  description String?     @db.Text
+  imageUrl    String      @db.VarChar(500)
+  videoUrl    String?     @db.VarChar(500)
+  type        GalleryType @default(IMAGE)
+  category    String?     @db.VarChar(100)
+
+  isPublished Boolean @default(false)
+  featured    Boolean @default(false)
+  order       Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([isPublished])
+  @@index([featured])
+  @@map("gallery")
+}
+
+// LIVE CLASSES
+model LiveClass {
+  id          String  @id @default(uuid())
+  title       String  @db.VarChar(255)
+  description String? @db.Text
+  courseId    String?
+  course      Course? @relation(fields: [courseId], references: [id])
+
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id])
+
+  scheduledAt     DateTime
+  duration        Int
+  meetingUrl      String?         @db.VarChar(500)
+  meetingId       String?         @db.VarChar(255)
+  meetingPassword String?         @db.VarChar(100)
+  meetingProvider String?         @db.VarChar(50) // ZOOM, GOOGLE_MEET, OTHER
+  zoomMeetingId   String?         @db.VarChar(255)
+  zoomJoinUrl     String?         @db.VarChar(500)
+  zoomStartUrl    String?         @db.VarChar(500)
+  autoGenerateMeeting Boolean     @default(false)
+  recordingUrl    String?         @db.VarChar(500)
+  status          LiveClassStatus @default(SCHEDULED)
+
+  enrollments LiveClassEnrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([instructorId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("live_classes")
+}
+
+model LiveClassEnrollment {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation("UserLiveClassEnrollments", fields: [userId], references: [id], onDelete: Cascade)
+  liveClassId String
+  liveClass   LiveClass @relation(fields: [liveClassId], references: [id], onDelete: Cascade)
+
+  attended Boolean   @default(false)
+  joinedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, liveClassId])
+  @@index([userId])
+  @@index([liveClassId])
+  @@map("live_class_enrollments")
+}
+
+// VASTU PRODUCTS (E-commerce)
+model Product {
+  id               String        @id @default(uuid())
+  name             String        @db.VarChar(255)
+  slug             String        @unique @db.VarChar(255)
+  description      String?       @db.Text
+  shortDescription String?       @db.VarChar(500)
+  images           Json
+  price            Decimal       @db.Decimal(10, 2)
+  comparePrice     Decimal?      @db.Decimal(10, 2)
+  sku              String?       @unique @db.VarChar(100)
+  stock            Int           @default(0)
+  status           ProductStatus @default(ACTIVE)
+  featured         Boolean       @default(false)
+
+  // Vastu specific fields
+  productType  String? @db.VarChar(50)
+  vastuPurpose String? @db.VarChar(255)
+  energyType   String? @db.VarChar(50)
+  material     String? @db.VarChar(100)
+  dimensions   Json?   // { length, width, height }
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  orderItems    OrderItem[]
+  reviews       ProductReview[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([status])
+  @@index([featured])
+  @@index([productType])
+  @@map("products")
+}
+
+model Cart {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("UserCart", fields: [userId], references: [id], onDelete: Cascade)
+
+  items CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId])
+  @@index([userId])
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int     @default(1)
+
+  createdAt DateTime @default(now())
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+  @@map("cart_items")
+}
+
+// COUPON/DISCOUNT CODES
+model Coupon {
+  id            String       @id @default(uuid())
+  code          String       @unique @db.VarChar(50)
+  description   String?      @db.Text
+  couponType    CouponType   @default(PERCENTAGE)
+  discountValue Decimal      @db.Decimal(10, 2)
+  minPurchase   Decimal?     @db.Decimal(10, 2)
+  maxDiscount   Decimal?     @db.Decimal(10, 2)
+  usageLimit    Int?
+  usedCount     Int          @default(0)
+  userLimit     Int?
+  validFrom     DateTime
+  validUntil    DateTime
+  status        CouponStatus @default(ACTIVE)
+
+  applicableCourses  Json?
+  applicableProducts Json?
+
+  usages   CouponUsage[]
+  orders   Order[]
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+  @@index([status])
+  @@index([validUntil])
+  @@map("coupons")
+}
+
+model CouponUsage {
+  id        String   @id @default(uuid())
+  couponId  String
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("UserCouponUsage", fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String?  @unique
+  order     Order?   @relation(fields: [orderId], references: [id])
+  paymentId String?  @unique
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  discountAmount Decimal @db.Decimal(10, 2)
+
+  usedAt DateTime @default(now())
+
+  @@index([couponId])
+  @@index([userId])
+  @@index([orderId])
+  @@map("coupon_usage")
+}
+
+model Order {
+  id          String @id @default(uuid())
+  orderNumber String @unique @db.VarChar(50)
+  userId      String
+  user        User   @relation("UserOrders", fields: [userId], references: [id])
+
+  items OrderItem[]
+
+  subtotal Decimal @db.Decimal(10, 2)
+  discount Decimal @default(0) @db.Decimal(10, 2)
+  tax      Decimal @default(0) @db.Decimal(10, 2)
+  shipping Decimal @default(0) @db.Decimal(10, 2)
+  total    Decimal @db.Decimal(10, 2)
+
+  couponId    String?
+  coupon      Coupon?      @relation(fields: [couponId], references: [id])
+  couponUsage CouponUsage?
+
+  payments Payment[]
+
+  shippingAddress Json
+  billingAddress  Json?
+
+  paymentMethod PaymentMethod
+  paymentId     String?       @db.VarChar(255)
+  status        OrderStatus   @default(PENDING)
+
+  trackingNumber String?   @db.VarChar(255)
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([orderNumber])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity Int
+  price    Decimal @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// EVENTS
+model Event {
+  id               String      @id @default(uuid())
+  title            String      @db.VarChar(255)
+  slug             String      @unique @db.VarChar(255)
+  description      String?     @db.Text
+  shortDescription String?     @db.VarChar(500)
+  image            String?     @db.VarChar(500)
+  venue            String?     @db.VarChar(255)
+  location         String?     @db.VarChar(500)
+  startDate        DateTime
+  endDate          DateTime?
+  price            Decimal     @default(0) @db.Decimal(10, 2)
+  isFree           Boolean     @default(false)
+  maxAttendees     Int?
+  status           EventStatus @default(UPCOMING)
+  featured         Boolean     @default(false)
+
+  registrations EventRegistration[]
+  consultations Consultation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([startDate])
+  @@index([status])
+  @@index([featured])
+  @@map("events")
+}
+
+model EventRegistration {
+  id      String  @id @default(uuid())
+  userId  String?
+  user    User?   @relation("UserEventRegistrations", fields: [userId], references: [id], onDelete: SetNull)
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name  String @db.VarChar(255)
+  email String @db.VarChar(255)
+  phone String @db.VarChar(50)
+
+  attended Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, email])
+  @@index([eventId])
+  @@index([email])
+  @@map("event_registrations")
+}
+
+// BLOGS
+model Blog {
+  id            String  @id @default(uuid())
+  title         String  @db.VarChar(255)
+  slug          String  @unique @db.VarChar(255)
+  excerpt       String? @db.VarChar(500)
+  content       String  @db.Text
+  featuredImage String? @db.VarChar(500)
+  authorId      String
+  author        User    @relation("AuthorBlogs", fields: [authorId], references: [id])
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  status   BlogStatus @default(DRAFT)
+  featured Boolean    @default(false)
+  views    Int        @default(0)
+
+  tags           String? @db.VarChar(500)
+  seoTitle       String? @db.VarChar(255)
+  seoDescription String? @db.VarChar(500)
+
+  comments BlogComment[]
+
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([slug])
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([featured])
+  @@index([publishedAt])
+  @@map("blogs")
+}
+
+model BlogComment {
+  id     String @id @default(uuid())
+  blogId String
+  blog   Blog   @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation("UserBlogComments", fields: [userId], references: [id], onDelete: SetNull)
+  name   String  @db.VarChar(255)
+  email  String? @db.VarChar(255)
+
+  content    String        @db.Text
+  isApproved Boolean       @default(false)
+  parentId   String?
+  parent     BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    BlogComment[] @relation("CommentReplies")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([blogId])
+  @@index([userId])
+  @@index([isApproved])
+  @@map("blog_comments")
+}
+
+// AFFILIATION PROGRAM
+model Affiliate {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation("UserAffiliate", fields: [userId], references: [id], onDelete: Cascade)
+
+  affiliateCode   String          @unique @db.VarChar(50)
+  status          AffiliateStatus @default(PENDING)
+  commissionRate  Decimal         @default(10.00) @db.Decimal(5, 2)
+  totalEarnings   Decimal         @default(0) @db.Decimal(10, 2)
+  paidEarnings    Decimal         @default(0) @db.Decimal(10, 2)
+  pendingEarnings Decimal         @default(0) @db.Decimal(10, 2)
+
+  bankName      String? @db.VarChar(255)
+  accountNumber String? @db.VarChar(100)
+  ifscCode      String? @db.VarChar(50)
+  panNumber     String? @db.VarChar(50)
+
+  earnings    AffiliateEarning[]
+  enrollments Enrollment[]       @relation("AffiliateEnrollments")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([affiliateCode])
+  @@index([status])
+  @@map("affiliates")
+}
+
+model AffiliateEarning {
+  id           String     @id @default(uuid())
+  affiliateId  String
+  affiliate    Affiliate  @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  courseId     String
+  course       Course     @relation(fields: [courseId], references: [id])
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  amount         Decimal   @db.Decimal(10, 2)
+  commissionRate Decimal   @db.Decimal(5, 2)
+  status         String    @default("PENDING")
+  paidAt         DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([affiliateId])
+  @@index([status])
+  @@map("affiliate_earnings")
+}
+
+// Reviews & Ratings
+model Review {
+  id       String @id @default(uuid())
+  userId   String
+  user     User   @relation("UserReviews", fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  rating  Int
+  comment String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@map("reviews")
+}
+
+model ProductReview {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation("UserProductReviews", fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  rating  Int
+  comment String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@map("product_reviews")
+}
+
+// Assignments
+model Assignment {
+  id          String    @id @default(uuid())
+  title       String    @db.VarChar(255)
+  description String?   @db.Text
+  dueDate     DateTime?
+  maxScore    Int       @default(100)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  submissions AssignmentSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@map("assignments")
+}
+
+model AssignmentSubmission {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation("UserSubmissions", fields: [userId], references: [id], onDelete: Cascade)
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  content     String    @db.Text
+  fileUrl     String?   @db.VarChar(500)
+  score       Int?
+  feedback    String?   @db.Text
+  submittedAt DateTime  @default(now())
+  gradedAt    DateTime?
+
+  @@unique([userId, assignmentId])
+  @@index([userId])
+  @@index([assignmentId])
+  @@map("assignment_submissions")
+}
+
+// Quizzes
+model Quiz {
+  id           String  @id @default(uuid())
+  title        String  @db.VarChar(255)
+  description  String? @db.Text
+  timeLimit    Int?
+  passingScore Int     @default(70)
+
+  lessonId String @unique
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id     String @id @default(uuid())
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  question      String @db.Text
+  questionType  String @default("multiple_choice") // multiple_choice, single_choice, true_false, open_ended, short_answer, matching
+  description   String? @db.Text // Optional description for question
+  options       Json?
+  correctAnswer String @db.Text
+  points        Int    @default(1)
+  order         Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([quizId])
+  @@map("quiz_questions")
+}
+
+model QuizAttempt {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("UserQuizAttempts", fields: [userId], references: [id], onDelete: Cascade)
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  answers     Json
+  score       Int?
+  isPassed    Boolean?
+  completedAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([quizId])
+  @@map("quiz_attempts")
+}
+
+// Certificates
+model Certificate {
+  id       String @id @default(uuid())
+  userId   String
+  user     User   @relation("UserCertificates", fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  certificateUrl String @db.VarChar(500)
+  certificateId  String @unique @db.VarChar(100)
+
+  issuedAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([certificateId])
+  @@map("certificates")
+}
+
+// Payments/Transactions
+model Payment {
+  id       String  @id @default(uuid())
+  userId   String
+  user     User    @relation("UserPayments", fields: [userId], references: [id], onDelete: Cascade)
+  courseId String?
+  course   Course? @relation(fields: [courseId], references: [id])
+  orderId  String?
+  order    Order?  @relation(fields: [orderId], references: [id])
+
+  amount      Decimal @db.Decimal(10, 2)
+  discount    Decimal @default(0) @db.Decimal(10, 2)
+  finalAmount Decimal @db.Decimal(10, 2)
+  currency    String  @default("NPR") @db.VarChar(10)
+
+  paymentMethod PaymentMethod
+
+  esewaRefId     String? @db.VarChar(255)
+  esewaProductId String? @db.VarChar(255)
+
+  mobileBankName String? @db.VarChar(100)
+  mobileBankRef  String? @db.VarChar(255)
+
+  cardLastFour   String? @db.VarChar(4)
+  cardType       String? @db.VarChar(50)
+  cardholderName String? @db.VarChar(255)
+
+  transactionId String? @unique @db.VarChar(255)
+  status        String  @default("PENDING")
+
+  couponId    String?
+  coupon      Coupon?      @relation(fields: [couponId], references: [id])
+  couponUsage CouponUsage?
+
+  // Retry tracking
+  retries    PaymentRetry[]
+  retryCount Int            @default(0)
+
+  // Analytics
+  processingTime      Int? // Milliseconds
+  gatewayResponseTime Int? // Milliseconds
+
+  metadata Json?
+
+  instructorEarnings InstructorEarning[]
+  transactions       Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([transactionId])
+  @@index([paymentMethod])
+  @@map("payments")
+}
+
+// Audit Log
+model AuditLog {
+  id     String  @id @default(uuid())
+  userId String? // Null for system actions
+  user   User?   @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+
+  action     String  @db.VarChar(100) // CREATE, UPDATE, DELETE, LOGIN, PAYMENT, etc.
+  entityType String  @db.VarChar(50) // USER, PAYMENT, COUPON, COURSE, etc.
+  entityId   String? @db.VarChar(255)
+
+  description   String? @db.Text
+  ipAddress     String? @db.VarChar(45)
+  userAgent     String? @db.Text
+  requestMethod String? @db.VarChar(10)
+  requestPath   String? @db.VarChar(500)
+
+  changes  Json? // Before/after values
+  metadata Json? // Additional context
+
+  riskScore Int?    @default(0) // 0-100, for fraud detection
+  flagged   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+  @@index([flagged])
+  @@index([riskScore])
+  @@map("audit_logs")
+}
+
+// Payment Retry
+model PaymentRetry {
+  id        String  @id @default(uuid())
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  retryCount  Int       @default(1)
+  maxRetries  Int       @default(3)
+  reason      String?   @db.Text
+  nextRetryAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentId])
+  @@map("payment_retries")
+}
+
+// Notifications
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  title   String  @db.VarChar(255)
+  message String  @db.Text
+  type    String  @default("INFO")
+  isRead  Boolean @default(false)
+  link    String? @db.VarChar(500)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@map("notifications")
+}
+
+// FAQ
+model FAQ {
+  id        String       @id @default(uuid())
+  question  String       @db.VarChar(500)
+  answer    String       @db.Text
+  category  FAQCategory?
+  order     Int          @default(0)
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+  @@map("faqs")
+}
+
+// Contact Form Submissions
+model ContactSubmission {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(255)
+  email     String   @db.VarChar(255)
+  phone     String?  @db.VarChar(50)
+  subject   String?  @db.VarChar(255)
+  message   String   @db.Text
+  status    String   @default("PENDING") // PENDING, READ, REPLIED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([email])
+  @@map("contact_submissions")
+}
+
+// Newsletter Subscribers
+model NewsletterSubscriber {
+  id             String    @id @default(uuid())
+  email          String    @unique @db.VarChar(255)
+  name           String?   @db.VarChar(255)
+  isActive       Boolean   @default(true)
+  subscribedAt   DateTime  @default(now())
+  unsubscribedAt DateTime?
+
+  @@index([email])
+  @@index([isActive])
+  @@map("newsletter_subscribers")
+}
+
+// Wishlist Items
+model WishlistItem {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("UserWishlist", fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String?
+  course    Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("wishlist_items")
+}
+
+// EXPENSES
+model Expense {
+  id          String          @id @default(uuid())
+  title       String          @db.VarChar(255)
+  description String?         @db.Text
+  amount      Decimal         @db.Decimal(10, 2)
+  category    ExpenseCategory
+  status      ExpenseStatus   @default(PENDING)
+
+  // Related entities (optional)
+  instructorId String?
+  instructor   Instructor?    @relation(fields: [instructorId], references: [id])
+  courseId     String?
+  course       Course?        @relation(fields: [courseId], references: [id])
+
+  // Payment details
+  paymentDate   DateTime?
+  paymentMethod String?       @db.VarChar(50)
+  receiptUrl    String?       @db.VarChar(500)
+  invoiceNumber String?       @db.VarChar(100)
+
+  // Approval workflow
+  submittedBy   String?       @db.VarChar(255) // User ID
+  approvedBy    String?       @db.VarChar(255) // User ID
+  approvedAt    DateTime?
+  rejectedReason String?      @db.Text
+
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([instructorId])
+  @@index([courseId])
+  @@index([createdAt])
+  @@map("expenses")
+}
+
+// INSTRUCTOR EARNINGS
+model InstructorEarning {
+  id           String   @id @default(uuid())
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  courseId     String
+  course       Course   @relation(fields: [courseId], references: [id])
+  paymentId    String
+  payment      Payment  @relation(fields: [paymentId], references: [id])
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  amount         Decimal @db.Decimal(10, 2)
+  commissionRate Decimal @db.Decimal(5, 2)
+  status         String  @default("PENDING") // PENDING, PAID, CANCELLED
+  paidAt         DateTime?
+  paymentMethod  String? @db.VarChar(50) // BANK_TRANSFER, CASH, etc.
+  transactionId  String? @db.VarChar(255)
+  notes          String? @db.Text
+
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([instructorId])
+  @@index([courseId])
+  @@index([status])
+  @@index([paymentId])
+  @@index([enrollmentId])
+  @@map("instructor_earnings")
+}
+
+// TRANSACTION LEDGER (Double-entry accounting)
+model Transaction {
+  id          String            @id @default(uuid())
+  type        TransactionType
+  category    TransactionCategory
+  amount      Decimal           @db.Decimal(10, 2)
+  description String            @db.VarChar(500)
+
+  // Related entities
+  paymentId          String?
+  payment            Payment?       @relation(fields: [paymentId], references: [id])
+  expenseId          String?
+  expense            Expense?       @relation(fields: [expenseId], references: [id])
+  instructorEarningId String?
+  instructorEarning InstructorEarning? @relation(fields: [instructorEarningId], references: [id])
+
+  referenceNumber String?        @db.VarChar(100)
+  transactionDate DateTime       @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([category])
+  @@index([transactionDate])
+  @@index([paymentId])
+  @@index([expenseId])
+  @@index([instructorEarningId])
+  @@map("transactions")
+}

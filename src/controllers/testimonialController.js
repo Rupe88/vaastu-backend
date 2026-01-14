@@ -1,0 +1,235 @@
+import { PrismaClient } from '@prisma/client';
+import { validationResult } from 'express-validator';
+
+const prisma = new PrismaClient();
+
+/**
+ * Get all published testimonials (Public)
+ */
+export const getTestimonials = async (req, res, next) => {
+  try {
+    const { featured, courseId, page = 1, limit = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {
+      isPublished: true,
+    };
+    if (featured === 'true') where.featured = true;
+    if (courseId) where.courseId = courseId;
+
+    const [testimonials, total] = await Promise.all([
+      prisma.testimonial.findMany({
+        where,
+        include: {
+          course: {
+            include: {
+              instructor: true,
+            },
+          },
+        },
+        skip,
+        take: parseInt(limit),
+        orderBy: [
+          { featured: 'desc' },
+          { order: 'asc' },
+          { createdAt: 'desc' },
+        ],
+      }),
+      prisma.testimonial.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: testimonials,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get testimonial by ID (Public)
+ */
+export const getTestimonialById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const testimonial = await prisma.testimonial.findUnique({
+      where: { id },
+      include: {
+        course: {
+          include: {
+            instructor: true,
+          },
+        },
+      },
+    });
+
+    if (!testimonial || !testimonial.isPublished) {
+      return res.status(404).json({
+        success: false,
+        message: 'Testimonial not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: testimonial,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Create testimonial (Admin only)
+ */
+export const createTestimonial = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+    }
+
+    const {
+      name,
+      image,
+      designation,
+      company,
+      rating,
+      comment,
+      courseId,
+      isPublished,
+      featured,
+      order,
+    } = req.body;
+
+    const testimonial = await prisma.testimonial.create({
+      data: {
+        name,
+        image: req.cloudinary?.url || image,
+        designation,
+        company,
+        rating: rating || 5,
+        comment,
+        courseId,
+        isPublished: isPublished || false,
+        featured: featured || false,
+        order: order || 0,
+      },
+      include: {
+        course: true,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: testimonial,
+      message: 'Testimonial created successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update testimonial (Admin only)
+ */
+export const updateTestimonial = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+    }
+
+    const { id } = req.params;
+    const {
+      name,
+      image,
+      designation,
+      company,
+      rating,
+      comment,
+      courseId,
+      isPublished,
+      featured,
+      order,
+    } = req.body;
+
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (req.cloudinary?.url || image) {
+      updateData.image = req.cloudinary?.url || image;
+    }
+    if (designation !== undefined) updateData.designation = designation;
+    if (company !== undefined) updateData.company = company;
+    if (rating !== undefined) updateData.rating = rating;
+    if (comment) updateData.comment = comment;
+    if (courseId !== undefined) updateData.courseId = courseId;
+    if (isPublished !== undefined) updateData.isPublished = isPublished;
+    if (featured !== undefined) updateData.featured = featured;
+    if (order !== undefined) updateData.order = order;
+
+    const testimonial = await prisma.testimonial.update({
+      where: { id },
+      data: updateData,
+      include: {
+        course: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: testimonial,
+      message: 'Testimonial updated successfully',
+    });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Testimonial not found',
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * Delete testimonial (Admin only)
+ */
+export const deleteTestimonial = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.testimonial.delete({
+      where: { id },
+    });
+
+    res.json({
+      success: true,
+      message: 'Testimonial deleted successfully',
+    });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Testimonial not found',
+      });
+    }
+    next(error);
+  }
+};
+
+

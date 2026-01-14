@@ -1,0 +1,331 @@
+import { PrismaClient } from '@prisma/client';
+import { validationResult } from 'express-validator';
+import { validateCoupon } from '../services/couponService.js';
+
+const prisma = new PrismaClient();
+
+/**
+ * Validate coupon code (Public)
+ */
+export const validateCouponCode = async (req, res, next) => {
+  try {
+    const { code, amount, courseId, productIds } = req.body;
+    const userId = req.user?.id;
+
+    const validation = await validateCoupon(code, userId, amount, courseId, productIds);
+
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.message,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        coupon: {
+          id: validation.coupon.id,
+          code: validation.coupon.code,
+          couponType: validation.coupon.couponType,
+          discountValue: validation.coupon.discountValue,
+        },
+        discountAmount: validation.discountAmount,
+        finalAmount: validation.finalAmount,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all active coupons (Public)
+ */
+export const getActiveCoupons = async (req, res, next) => {
+  try {
+    const coupons = await prisma.coupon.findMany({
+      where: {
+        status: 'ACTIVE',
+        validFrom: {
+          lte: new Date(),
+        },
+        validUntil: {
+          gte: new Date(),
+        },
+      },
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        couponType: true,
+        discountValue: true,
+        minPurchase: true,
+        maxDiscount: true,
+        validFrom: true,
+        validUntil: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    res.json({
+      success: true,
+      data: coupons,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all coupons (Admin only)
+ */
+export const getAllCoupons = async (req, res, next) => {
+  try {
+    const { status, page = 1, limit = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {};
+    if (status) {
+      where.status = status;
+    }
+
+    const [coupons, total] = await Promise.all([
+      prisma.coupon.findMany({
+        where,
+        include: {
+          _count: {
+            select: {
+              usages: true,
+            },
+          },
+        },
+        skip,
+        take: parseInt(limit),
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      prisma.coupon.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: coupons,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get coupon by ID
+ */
+export const getCouponById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const coupon = await prisma.coupon.findUnique({
+      where: { id },
+      include: {
+        usages: {
+          take: 10,
+          orderBy: {
+            usedAt: 'desc',
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: coupon,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Create coupon (Admin only)
+ */
+export const createCoupon = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+    }
+
+    const {
+      code,
+      description,
+      couponType,
+      discountValue,
+      minPurchase,
+      maxDiscount,
+      usageLimit,
+      userLimit,
+      validFrom,
+      validUntil,
+      applicableCourses,
+      applicableProducts,
+    } = req.body;
+
+    const coupon = await prisma.coupon.create({
+      data: {
+        code: code.toUpperCase(),
+        description,
+        couponType,
+        discountValue: parseFloat(discountValue),
+        minPurchase: minPurchase ? parseFloat(minPurchase) : null,
+        maxDiscount: maxDiscount ? parseFloat(maxDiscount) : null,
+        usageLimit: usageLimit ? parseInt(usageLimit) : null,
+        userLimit: userLimit ? parseInt(userLimit) : null,
+        validFrom: new Date(validFrom),
+        validUntil: new Date(validUntil),
+        applicableCourses: applicableCourses ? JSON.stringify(applicableCourses) : null,
+        applicableProducts: applicableProducts ? JSON.stringify(applicableProducts) : null,
+        status: 'ACTIVE',
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: coupon,
+      message: 'Coupon created successfully',
+    });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({
+        success: false,
+        message: 'Coupon with this code already exists',
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * Update coupon (Admin only)
+ */
+export const updateCoupon = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+    }
+
+    const { id } = req.params;
+    const {
+      code,
+      description,
+      couponType,
+      discountValue,
+      minPurchase,
+      maxDiscount,
+      usageLimit,
+      userLimit,
+      validFrom,
+      validUntil,
+      applicableCourses,
+      applicableProducts,
+      status,
+    } = req.body;
+
+    const updateData = {};
+    if (code) updateData.code = code.toUpperCase();
+    if (description !== undefined) updateData.description = description;
+    if (couponType) updateData.couponType = couponType;
+    if (discountValue !== undefined) updateData.discountValue = parseFloat(discountValue);
+    if (minPurchase !== undefined) updateData.minPurchase = minPurchase ? parseFloat(minPurchase) : null;
+    if (maxDiscount !== undefined) updateData.maxDiscount = maxDiscount ? parseFloat(maxDiscount) : null;
+    if (usageLimit !== undefined) updateData.usageLimit = usageLimit ? parseInt(usageLimit) : null;
+    if (userLimit !== undefined) updateData.userLimit = userLimit ? parseInt(userLimit) : null;
+    if (validFrom) updateData.validFrom = new Date(validFrom);
+    if (validUntil) updateData.validUntil = new Date(validUntil);
+    if (applicableCourses !== undefined) {
+      updateData.applicableCourses = applicableCourses ? JSON.stringify(applicableCourses) : null;
+    }
+    if (applicableProducts !== undefined) {
+      updateData.applicableProducts = applicableProducts ? JSON.stringify(applicableProducts) : null;
+    }
+    if (status) updateData.status = status;
+
+    const coupon = await prisma.coupon.update({
+      where: { id },
+      data: updateData,
+    });
+
+    res.json({
+      success: true,
+      data: coupon,
+      message: 'Coupon updated successfully',
+    });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon not found',
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * Delete coupon (Admin only)
+ */
+export const deleteCoupon = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.coupon.delete({
+      where: { id },
+    });
+
+    res.json({
+      success: true,
+      message: 'Coupon deleted successfully',
+    });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon not found',
+      });
+    }
+    next(error);
+  }
+};
+
+

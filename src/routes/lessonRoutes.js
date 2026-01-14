@@ -1,0 +1,81 @@
+import express from 'express';
+import {
+  getCourseLessons,
+  getLessonById,
+  createLesson,
+  updateLesson,
+  deleteLesson,
+} from '../controllers/lessonController.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/role.js';
+import { singleUpload, processVideoUpload, processDocumentUpload } from '../middleware/cloudinaryUpload.js';
+import { body, param } from 'express-validator';
+
+const router = express.Router();
+
+// Public routes
+router.get('/course/:courseId', [param('courseId').isUUID()], getCourseLessons);
+router.get('/:id', [param('id').isUUID()], getLessonById);
+
+// Admin routes
+router.post(
+  '/',
+  authenticate,
+  requireAdmin,
+  singleUpload('video'),
+  processVideoUpload,
+  [
+    body('courseId').notEmpty().isUUID(),
+    body('chapterId').optional().isUUID(),
+    body('title').notEmpty().trim().isLength({ min: 1, max: 255 }),
+    body('slug').optional().trim().isLength({ min: 1, max: 255 }),
+    body('description').optional().isString(),
+    body('content').optional().isString(),
+    body('videoUrl').optional().isString(),
+    body('videoDuration').optional().isInt({ min: 0 }),
+    body('attachmentUrl').optional().isString(),
+    body('lessonType').optional().isIn(['VIDEO', 'TEXT', 'PDF', 'QUIZ', 'ASSIGNMENT']),
+    body('order').optional().isInt(),
+    body('isPreview').optional().isBoolean(),
+    body('isLocked').optional().isBoolean(),
+    body('unlockRequirement').optional(),
+  ],
+  createLesson
+);
+
+router.put(
+  '/:id',
+  authenticate,
+  requireAdmin,
+  singleUpload('video'),
+  processVideoUpload,
+  [
+    param('id').isUUID(),
+    body('chapterId').optional().isUUID(),
+    body('title').optional().trim().isLength({ min: 1, max: 255 }),
+    body('slug').optional().trim().isLength({ min: 1, max: 255 }),
+    body('description').optional().isString(),
+    body('content').optional().isString(),
+    body('videoUrl').optional().isString(),
+    body('videoDuration').optional().isInt({ min: 0 }),
+    body('attachmentUrl').optional().isString(),
+    body('lessonType').optional().isIn(['VIDEO', 'TEXT', 'PDF', 'QUIZ', 'ASSIGNMENT']),
+    body('order').optional().isInt(),
+    body('isPreview').optional().isBoolean(),
+    body('isLocked').optional().isBoolean(),
+    body('unlockRequirement').optional(),
+  ],
+  updateLesson
+);
+
+router.delete(
+  '/:id',
+  authenticate,
+  requireAdmin,
+  [param('id').isUUID()],
+  deleteLesson
+);
+
+export default router;
+
+
