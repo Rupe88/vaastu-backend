@@ -5,8 +5,8 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "dev": "TOKIO_WORKER_THREADS=1 nodemon src/server.js",
+    "start": "TOKIO_WORKER_THREADS=1 node src/server.js",
     "build": "echo 'Build completed - Prisma commands handled by CI/CD'",
     "test": "node test-api.js",
     "test:api": "node test-api.js",

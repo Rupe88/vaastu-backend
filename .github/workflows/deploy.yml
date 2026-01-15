@@ -95,10 +95,8 @@ jobs:
               env: {
                 NODE_ENV: 'production',
                 PORT: 3000,
-                UV_THREADPOOL_SIZE: 1,
-                NODE_OPTIONS: '--max-old-space-size=128 --max-semi-space-size=16',
-                TOKIO_WORKER_THREADS: 1,
-                RAYON_NUM_THREADS: 1
+                UV_THREADPOOL_SIZE: 4,
+                NODE_OPTIONS: '--max-old-space-size=256'
               },
               error_log: './logs/err.log',
               out_log: './logs/out.log',
