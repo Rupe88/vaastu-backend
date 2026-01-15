@@ -83,7 +83,7 @@ jobs:
 
       - name: 🔧 Create PM2 Ecosystem File
         run: |
-          cat > ecosystem.config.js << EOF
+          cat > ecosystem.config.cjs << EOF
           module.exports = {
             apps: [{
               name: 'vaastu-backend',
