@@ -94,7 +94,7 @@ jobs:
               max_memory_restart: '1G',
               env: {
                 NODE_ENV: 'production',
-                PORT: 8000,
+                PORT: 3000,
                 UV_THREADPOOL_SIZE: 4,
                 NODE_OPTIONS: '--max-old-space-size=256'
               },
