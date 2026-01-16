@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  vaastu-lms-backend:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      # Add other environment variables here for local development
+      # - DATABASE_URL=your_local_db_url
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+    networks:
+      - vaastu-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=vaastu_lms
+      - POSTGRES_USER=vaastu_user
+      - POSTGRES_PASSWORD=vaastu_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vaastu-network
+
+volumes:
+  postgres_data:
+
+networks:
+  vaastu-network:
+    driver: bridge

@@ -1,0 +1,87 @@
+name: vaastu-lms-backend
+services:
+- name: api
+  source_dir: /
+  github:
+    repo: rupesh/vaastu-backend  # Replace with your actual GitHub repo
+    branch: main
+    deploy_on_push: true
+  run_command: npm run start
+  build_command: npm run build
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: PORT
+    value: "8080"
+  # Database Configuration - SET THESE IN DIGITAL OCEAN DASHBOARD
+  - key: DATABASE_URL
+    type: SECRET
+    value: "${SUPABASE_DATABASE_URL}"
+  - key: DIRECT_URL
+    type: SECRET
+    value: "${SUPABASE_DIRECT_URL}"
+  # JWT Configuration
+  - key: JWT_ACCESS_SECRET
+    type: SECRET
+    value: "${JWT_ACCESS_SECRET}"
+  - key: JWT_REFRESH_SECRET
+    type: SECRET
+    value: "${JWT_REFRESH_SECRET}"
+  - key: JWT_ACCESS_EXPIRY
+    value: "15m"
+  - key: JWT_REFRESH_EXPIRY
+    value: "7d"
+  # Email Configuration
+  - key: SMTP_HOST
+    value: smtp.gmail.com
+  - key: SMTP_PORT
+    value: "587"
+  - key: SMTP_USER
+    type: SECRET
+    value: "${SMTP_USER}"
+  - key: SMTP_PASS
+    type: SECRET
+    value: "${SMTP_PASS}"
+  # Resend Email (Fallback)
+  - key: RESEND_API_KEY
+    type: SECRET
+    value: "${RESEND_API_KEY}"
+  - key: RESEND_FROM_EMAIL
+    type: SECRET
+    value: "${RESEND_FROM_EMAIL}"
+  # Application Settings
+  - key: APP_NAME
+    value: "Vaastu LMS Platform"
+  - key: FRONTEND_URL
+    value: "${FRONTEND_URL}"
+  # Cloudinary Configuration
+  - key: CLOUDINARY_CLOUD_NAME
+    value: dtrfe6xfl
+  - key: CLOUDINARY_API_KEY
+    type: SECRET
+    value: "${CLOUDINARY_API_KEY}"
+  - key: CLOUDINARY_API_SECRET
+    type: SECRET
+    value: "${CLOUDINARY_API_SECRET}"
+  # Payment Gateway
+  - key: ESEWA_MERCHANT_ID
+    type: SECRET
+    value: "${ESEWA_MERCHANT_ID}"
+  - key: ESEWA_SECRET_KEY
+    type: SECRET
+    value: "${ESEWA_SECRET_KEY}"
+  - key: ESEWA_ENVIRONMENT
+    value: sandbox
+  health_check:
+    http_path: /health
+  # CORS Configuration for production
+  - key: CORS_ORIGINS
+    value: "${FRONTEND_URL},https://your-frontend-domain.com"
+databases:
+- name: postgres
+  engine: PG
+  version: "15"
+  size: basic
+  num_nodes: 1

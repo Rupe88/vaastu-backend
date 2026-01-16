@@ -5,16 +5,20 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "dev": "TOKIO_WORKER_THREADS=1 nodemon src/server.js",
-    "start": "TOKIO_WORKER_THREADS=1 node src/server.js",
-    "build": "echo 'Build completed - Prisma commands handled by CI/CD'",
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "build": "prisma generate",
+    "postbuild": "echo 'Build completed successfully'",
     "test": "node test-api.js",
     "test:api": "node test-api.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "node prisma/seed.js"
+    "prisma:seed": "node prisma/seed.js",
+    "lint": "echo 'No linting configured yet'",
+    "docker:build": "docker build -t vaastu-lms-backend .",
+    "docker:run": "docker run -p 4000:4000 vaastu-lms-backend"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
