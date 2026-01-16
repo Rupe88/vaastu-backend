@@ -3,7 +3,7 @@ services:
 - name: api
   source_dir: /
   github:
-    repo: rupesh/vaastu-backend  # Replace with your actual GitHub repo
+    repo: Rupe88/vaastu-backend
     branch: main
     deploy_on_push: true
   run_command: npm run start
